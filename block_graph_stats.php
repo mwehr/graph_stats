@@ -20,7 +20,7 @@
  *
  * @package    block
  * @subpackage graph_stats
- * @copyright  2011 Éric Bugnet with help of Jean Fruitet
+ * @copyright  2011 Éric Bugnet with help of Jean Fruitet, Mario wehr
  * @copyright 2014 Wesley Ellis, Code Improvements.
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -97,24 +97,36 @@ class block_graph_stats extends block_base {
             $this->content->text .= html_writer::end_tag('div');
         }
 
+        $params = array(
+            'time' => mktime(0, 0, 0, date("m") , date("d"), date("Y")),
+        );
         // Add some details in the footer.
         if ($COURSE->id > 1) {
-            // In a course.
-            $params = array('time' => mktime(0, 0, 0, date("m") , date("d"), date("Y")), 'course' => $COURSE->id);
-            $sql = "SELECT COUNT(DISTINCT(userid)) as countid FROM {log}
+            if ($CFG->version > 2014051200) { // Moodle 2.7+
+                $params['courseid'] = $COURSE->id;
+                $params['eventname'] = '\core\event\course_viewed';
+                $sql = "SELECT COUNT(DISTINCT(userid)) as countid FROM mdl_logstore_standard_log
+                    WHERE timecreated > :time AND eventname = :eventname AND action = 'viewed' AND courseid = :courseid  ";
+            } else { // Before Moodle 2.7
+                $params['course'] = $COURSE->id;
+                $sql = "SELECT COUNT(DISTINCT(userid)) as countid FROM {log}
                     WHERE time > :time AND action = 'view' AND course = :course  ";
-            $connections = $DB->get_record_sql($sql , $params);
+            }
+            $connections = $DB->get_records_sql($sql , $params);
             $this->content->footer .= get_string('connectedtoday', 'block_graph_stats') . $connections->countid;
         } else {
-                // In the front page.
-                $params = array('time' => mktime(0, 0, 0, date("m") , date("d"), date("Y")));
+            if ($CFG->version > 2014051200) { // Moodle 2.7+
+                $params['eventname'] = '\core\event\user_loggedin';
+                $sql = "SELECT COUNT(userid) as countid FROM mdl_logstore_standard_log WHERE timecreated > :time AND action = 'loggedin' ";
+            } else { // Before Moodle 2.7
                 $sql = "SELECT COUNT(userid) as countid FROM {log} WHERE time > :time AND action = 'login' ";
-                $connections = $DB->get_record_sql($sql, $params);
-                $this->content->footer .= get_string('connectedtoday', 'block_graph_stats') . $connections->countid;
-                $users = $DB->get_records('user', array('deleted' => 0, 'confirmed' => 1));
-                $courses = $DB->get_records('course', array('visible' => 1));
-                $this->content->footer .= '<br />'.get_string('membersnb', 'block_graph_stats') . count($users);
-                $this->content->footer .= '<br />'.get_string('coursesnb', 'block_graph_stats') . count($courses);
+            }
+            $connections = $DB->get_record_sql($sql, $params);
+            $this->content->footer .= get_string('connectedtoday', 'block_graph_stats') . $connections->countid;
+            $users = $DB->get_records('user', array('deleted' => 0, 'confirmed' => 1));
+            $courses = $DB->get_records('course', array('visible' => 1));
+            $this->content->footer .= '<br />'.get_string('membersnb', 'block_graph_stats') . count($users);
+            $this->content->footer .= '<br />'.get_string('coursesnb', 'block_graph_stats') . count($courses);
         }
         return $this->content;
     }

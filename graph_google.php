@@ -20,7 +20,7 @@
  *
  * @package    block
  * @subpackage graph_stats
- * @copyright  2011 Éric Bugnet with help of Jean Fruitet
+ * @copyright  2011 Éric Bugnet with help of Jean Fruitet, Mario wehr
  * @copyright  2014 Wesley Ellis, Code Improvements.
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -55,9 +55,15 @@ function graph_google($courseid, $title) {
                 'time1' => mktime(0, 0, 0, date("m") , date("d") - $i, date("Y")),
                 'time2' => mktime(0, 0, 0, date("m") , date("d") - ($i - 1), date("Y")),
                 'courseid' => $courseid);
-            $sql = "SELECT COUNT(DISTINCT(userid)) as countid FROM {log}
-            WHERE time > :time1 AND time < :time2 AND action = 'view' AND course = :courseid";
-                    $countgraphmulti = $DB->get_record_sql($sql, $params);
+            if ($CFG->version > 2014051200) { // Moodle 2.7+
+                $params['eventname'] = '\core\event\course_viewed';
+                $sql = "SELECT COUNT(DISTINCT(userid)) as countid FROM mdl_logstore_standard_log
+                  WHERE timecreated > :time1 AND timecreated < :time2 AND action = 'viewed' AND eventname = :eventname AND courseid = :courseid";
+            } else { // Before Moodle 2.7
+                $sql = "SELECT COUNT(DISTINCT(userid)) as countid FROM {log}
+                    WHERE time > :time1 AND time < :time2 AND action = 'view' AND course = :courseid";
+            }
+            $countgraphmulti = $DB->get_record_sql($sql, $params);
             $days[$a] = '';
                     $logsmulti[$a] = $countgraphmulti->countid;
                     $day[$a] = substr(userdate(mktime(0, 0, 0, date("m") , date("d") - $i, date("Y"))), 0, -7);
@@ -69,19 +75,32 @@ function graph_google($courseid, $title) {
                 'time1' => mktime(0, 0, 0, date("m") , date("d") - $i, date("Y")),
                 'time2' => mktime(0, 0, 0, date("m") , date("d") - ($i - 1), date("Y")),
                 'courseid' => $courseid);
-            $sql = "SELECT COUNT(DISTINCT(userid)) as countid FROM {log}
+            if ($CFG->version > 2014051200) { // Moodle 2.7+
+                $params['eventname'] = '\core\event\user_loggedin';
+                $sql = "SELECT COUNT(DISTINCT(userid)) as countid FROM mdl_logstore_standard_log
+                    WHERE timecreated > :time1 AND timecreated < :time2 AND eventname = :eventname AND action = 'loggedin' ";
+            } else { // Before Moodle 2.7
+                $sql = "SELECT COUNT(DISTINCT(userid)) as countid FROM {log}
                     WHERE time > :time1 AND time < :time2 AND action = 'login'";
+            }
             $countgraph = $DB->get_record_sql($sql, $params);
             $days[$a] = '';
             $logs[$a] = $countgraph->countid;
             if ($CFG->multi == 1) {
-                $params = array(
+                // no need to fill params a second time
+                /*$params = array(
                     'time1' => mktime(0, 0, 0, date("m") , date("d") - $i, date("Y")),
                     'time2' => mktime(0, 0, 0, date("m") , date("d") - ($i - 1), date("Y")),
-                    'courseid' => $courseid );
-                $sql = "SELECT COUNT(userid) as countid FROM {log} WHERE time > :time1 AND time < :time2 AND action = 'login' ";
-                            $countgraphmulti = $DB->get_record_sql($sql, $params);
-                            $logsmulti[$a] = $countgraphmulti->countid;
+                    'courseid' => $courseid );*/
+                if ($CFG->version > 2014051200) { // Moodle 2.7+
+                    $sql = "SELECT COUNT(userid) as countid FROM mdl_logstore_standard_log
+                        WHERE timecreated > :time1 AND timecreated < :time2 AND eventname = :eventname AND action = 'loggedin' ";
+                } else { // Before Moodle 2.7
+                    $sql = "SELECT COUNT(userid) as countid FROM {log}
+                        WHERE time > :time1 AND time < :time2 AND action = 'login' ";
+                }
+                $countgraphmulti = $DB->get_record_sql($sql, $params);
+                $logsmulti[$a] = $countgraphmulti->countid;
             }
             $day[$a] = substr(userdate(mktime(0, 0, 0, date("m") , date("d") - $i, date("Y"))), 0, -7);
             $a = $a + 1;
